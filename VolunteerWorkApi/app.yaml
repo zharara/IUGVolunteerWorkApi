@@ -1,0 +1,8 @@
+﻿runtime: custom
+env: flex
+
+manual_scaling:
+  instances: 1
+
+beta_settings:
+  cloud_sql_instances: volunteerworkapp:us-central1:iugvw-db=tcp:1433
