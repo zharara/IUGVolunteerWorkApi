@@ -32,5 +32,7 @@
         public const string MakeSureToFulfillApplicationRequirements = "تأكد من تلبية متطلبات التقديم";
         public const string ApplicationIsAlreadyApproved = "الطلب مقبول بالفعل";
         public const string ApplicationIsAlreadyRejected = "الطلب مرفوض بالفعل";
+        public const string ConflictError = "خطأ تعارض";
+        public const string StudentAlreayEnrollerInProgram = "الطالب ملتحق ببرنامج بالفعل";
     }
 }

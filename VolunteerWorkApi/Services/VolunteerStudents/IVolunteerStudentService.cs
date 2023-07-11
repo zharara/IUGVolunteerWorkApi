@@ -13,6 +13,8 @@ namespace VolunteerWorkApi.Services.VolunteerStudents
 
         VolunteerStudentDto GetById(long id);
 
+        VolunteerStudentDto? GetOfStudentById(long studentId);
+
         Task<VolunteerStudentDto> Create(
             CreateVolunteerStudentDto createEntityDto, long currentUserId);
 

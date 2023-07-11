@@ -1,5 +1,4 @@
 ﻿using VolunteerWorkApi.Dtos.Category;
-using VolunteerWorkApi.Dtos.Interest;
 using VolunteerWorkApi.Dtos.Organization;
 using VolunteerWorkApi.Dtos.SavedFile;
 using VolunteerWorkApi.Dtos.Skill;
@@ -37,8 +36,6 @@ namespace VolunteerWorkApi.Dtos.VolunteerOpportunity
         public DateTime ReceiveApplicationsEndDate { get; set; }
 
         public int RequiredVolunteerStudentsNumber { get; set; }
-
-        public ICollection<InterestDto>? VolunteerInterests { get; set; }
 
         public ICollection<SkillDto>? VolunteerSkills { get; set; }
 

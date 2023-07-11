@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Dtos.Category;
-using VolunteerWorkApi.Dtos.Interest;
 using VolunteerWorkApi.Dtos.Skill;
 using VolunteerWorkApi.Models;
 
@@ -33,8 +32,6 @@ namespace VolunteerWorkApi.Dtos.VolunteerOpportunity
         public DateTime? ReceiveApplicationsEndDate { get; set; }
 
         public int? RequiredVolunteerStudentsNumber { get; set; }
-
-        public ICollection<ExistingOrCreateNewInterestDto>? VolunteerInterests { get; set; }
 
         public ICollection<ExistingOrCreateNewSkillDto>? VolunteerSkills { get; set; }
 

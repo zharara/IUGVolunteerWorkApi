@@ -8,7 +8,8 @@ namespace VolunteerWorkApi.Services.Students
         IEnumerable<StudentDto> GetAll();
 
         IEnumerable<StudentDto> GetList(
-            string? filter, int? skipCount, int? maxResultCount);
+            string? filter, int? skipCount,
+            int? maxResultCount, bool? isNotVolunteer);
 
         StudentDto GetById(long id);
 
@@ -20,11 +21,14 @@ namespace VolunteerWorkApi.Services.Students
         Task<StudentDto> Update(
             UpdateStudentDto updateEntityDto, long currentUserId);
 
+        Task<StudentDto> UpdateByManagement(
+           UpdateStudentByManagementDto updateStudentByManagement,
+           long currentUserId);
+
+        Task StudentHasEnrolledInProgram(long studentId);
+
         Task<StudentDto> UpdateSkills(
            UpdateStudentSkills updateStudentSkillsDto, long currentUserId);
-
-        Task<StudentDto> UpdateInterests(
-           UpdateStudentInterests updateStudentInterestsDto, long currentUserId);
 
         Task<StudentDto> Remove(long id);
     }

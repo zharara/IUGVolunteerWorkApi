@@ -7,7 +7,6 @@ using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Helpers.ErrorHandling;
 using VolunteerWorkApi.Services.SavedFiles;
 using VolunteerWorkApi.Helpers;
-using VolunteerWorkApi.Services.Interests;
 using VolunteerWorkApi.Services.Skills;
 using System.Net;
 
@@ -19,28 +18,25 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
         private readonly IMapper _mapper;
         private readonly ISavedFileService _savedFileService;
         private readonly ISkillService _skillService;
-        private readonly IInterestService _interestService;
 
         public VolunteerOpportunityService(
             ApplicationDbContext dbContext,
             IMapper mapper, ISavedFileService savedFileService,
-            ISkillService skillService, IInterestService interestService)
+            ISkillService skillService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _savedFileService = savedFileService;
             _skillService = skillService;
-            _interestService = interestService;
         }
 
         public IEnumerable<VolunteerOpportunityDto> GetAll()
         {
             return _dbContext.VolunteerOpportunities
                 .Include(x => x.Organization)
+                .ThenInclude(x => x.ProfilePicture)
                 .Include(x => x.Category)
                 .Include(x => x.Logo)
-                .Include(x => x.VolunteerInterests)
-                .ThenInclude(x => x.Category)
                 .Include(x => x.VolunteerSkills)
                 .ThenInclude(x => x.Category)
                 .Select(x => _mapper.Map<VolunteerOpportunityDto>(x))
@@ -52,10 +48,9 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
         {
             return _dbContext.VolunteerOpportunities
                  .Include(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
                  .Include(x => x.Category)
                  .Include(x => x.Logo)
-                 .Include(x => x.VolunteerInterests)
-                 .ThenInclude(x => x.Category)
                  .Include(x => x.VolunteerSkills)
                  .ThenInclude(x => x.Category)
                  .WhereIf(organizationId != null,
@@ -72,10 +67,9 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
         {
             var entity = _dbContext.VolunteerOpportunities
                  .Include(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
                  .Include(x => x.Category)
                  .Include(x => x.Logo)
-                 .Include(x => x.VolunteerInterests)
-                 .ThenInclude(x => x.Category)
                  .Include(x => x.VolunteerSkills)
                  .ThenInclude(x => x.Category)
                  .FirstOrDefault(x => x.Id == id);
@@ -120,21 +114,14 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
                     entity.VolunteerSkills,
                     createEntityDto.VolunteerSkills);
 
-                DataCollectionsHandler.HandleInterests(
-                    _mapper, _interestService,
-                    entity.VolunteerInterests,
-                    createEntityDto.VolunteerInterests);
-
                 entity.CreatedBy = currentUserId;
 
                 await _dbContext.VolunteerOpportunities.AddAsync(entity);
 
                 _dbContext.Entry(entity).Reference(x => x.Organization).Load();
+                _dbContext.Entry(entity).Reference(x => x.Organization.ProfilePicture).Load();
                 _dbContext.Entry(entity).Reference(x => x.Category).Load();
                 _dbContext.Entry(entity).Reference(x => x.Logo).Load();
-                _dbContext.Entry(entity)
-                    .Collection(x => x.VolunteerInterests)
-                    .Query().Include(x => x.Category).Load();
                 _dbContext.Entry(entity)
                     .Collection(x => x.VolunteerSkills)
                     .Query().Include(x => x.Category).Load();
@@ -167,10 +154,9 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
             {
                 var entity = _dbContext.VolunteerOpportunities
                      .Include(x => x.Organization)
+                     .ThenInclude(x => x.ProfilePicture)
                      .Include(x => x.Category)
                      .Include(x => x.Logo)
-                     .Include(x => x.VolunteerInterests)
-                     .ThenInclude(x => x.Category)
                      .Include(x => x.VolunteerSkills)
                      .ThenInclude(x => x.Category)
                      .FirstOrDefault(x => x.Id == updateEntityDto.Id);
@@ -194,11 +180,6 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
                     _mapper, _skillService,
                     entity.VolunteerSkills,
                     updateEntityDto.VolunteerSkills);
-
-                DataCollectionsHandler.HandleInterests(
-                    _mapper, _interestService,
-                    entity.VolunteerInterests,
-                    updateEntityDto.VolunteerInterests);
 
                 entity.ModifiedDate = DateTime.UtcNow;
 
@@ -229,10 +210,9 @@ namespace VolunteerWorkApi.Services.VolunteerOpportunities
         {
             var entity = _dbContext.VolunteerOpportunities
                      .Include(x => x.Organization)
+                     .ThenInclude(x => x.ProfilePicture)
                      .Include(x => x.Category)
                      .Include(x => x.Logo)
-                     .Include(x => x.VolunteerInterests)
-                     .ThenInclude(x => x.Category)
                      .Include(x => x.VolunteerSkills)
                      .ThenInclude(x => x.Category)
                      .FirstOrDefault(x => x.Id == id);

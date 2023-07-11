@@ -19,11 +19,10 @@ namespace VolunteerWorkApi.Data
                 .HasQueryFilter(x => !x.IsDeleted)
                 .Property(m => m.FullName)
                 .HasComputedColumnSql(@"CASE WHEN [MiddleName] IS NULL THEN [FirstName] + ' ' + [LastName] ELSE [FirstName] + ' ' + [MiddleName] + ' ' + [LastName] END");
-                                
+
             builder.Entity<Announcement>().HasQueryFilter(x => !x.IsDeleted);          
             builder.Entity<Category>().HasQueryFilter(x => !x.IsDeleted);
             builder.Entity<Conversation>().HasQueryFilter(x => !x.IsDeleted);
-            builder.Entity<Interest>().HasQueryFilter(x => !x.IsDeleted);
             builder.Entity<Message>().HasQueryFilter(x => !x.IsDeleted);
             builder.Entity<Notification>().HasQueryFilter(x => !x.IsDeleted);
             builder.Entity<Skill>().HasQueryFilter(x => !x.IsDeleted);
@@ -49,8 +48,6 @@ namespace VolunteerWorkApi.Data
         public DbSet<SavedFile> SavedFiles { get; set; }
 
         public DbSet<TempFile> TempFiles { get; set; }
-
-        public DbSet<Interest> Interests { get; set; }
 
         public DbSet<ManagementEmployee> ManagementEmployees { get; set; }
 

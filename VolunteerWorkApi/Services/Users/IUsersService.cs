@@ -21,5 +21,11 @@ namespace VolunteerWorkApi.Services.Users
             string currentUserId,
             string currentPassword,
             string newPassword);
+
+        Task<ApplicationUser?> ResetUserPassword(
+           long userId,
+           string newPassword);
+
+        Task<ApplicationUser> GetUserById(long userId);
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Security.Claims;
+using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Dtos.ManagementEmployee;
 using VolunteerWorkApi.Dtos.Organization;
 using VolunteerWorkApi.Dtos.Student;
@@ -88,7 +89,7 @@ namespace VolunteerWorkApi.Controllers
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
 
-        public async Task<IActionResult> ResetPassword(
+        public async Task<IActionResult> ChangePassword(
             string currentUserPassword, string newUserPassword)
         {
             var userId =
@@ -106,6 +107,24 @@ namespace VolunteerWorkApi.Controllers
                 newPassword: newUserPassword);
 
             return Ok(authToken);
+        }
+
+        [Authorize(Roles = UsersRoles.Management)]
+        [HttpPost]
+        [ProducesResponseType(typeof(ApplicationUser),
+            (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
+
+        public async Task<IActionResult> ResetStudentPasswordByManagement(
+            long studentId, string newPassword)
+        {
+            var applicationUser = await _usersService
+                .ResetUserPassword(
+                userId: studentId,
+                newPassword: newPassword);
+
+            return Ok(applicationUser);
         }
     }
 }

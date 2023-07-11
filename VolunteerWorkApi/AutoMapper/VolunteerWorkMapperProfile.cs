@@ -2,7 +2,6 @@
 using VolunteerWorkApi.Dtos.Announcement;
 using VolunteerWorkApi.Dtos.Category;
 using VolunteerWorkApi.Dtos.Conversation;
-using VolunteerWorkApi.Dtos.Interest;
 using VolunteerWorkApi.Dtos.Message;
 using VolunteerWorkApi.Dtos.Notification;
 using VolunteerWorkApi.Dtos.SavedFile;
@@ -50,15 +49,6 @@ namespace VolunteerWorkApi.AutoMapper
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
            
             CreateMap<TempFile, TempFileDto>().ReverseMap()
-                .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
-
-            CreateMap<Interest, CreateInterestDto>().ReverseMap()
-                .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
-            CreateMap<Interest, UpdateInterestDto>().ReverseMap()
-                .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
-            CreateMap<Interest, InterestDto>().ReverseMap()
-                .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
-            CreateMap<Interest, ExistingOrCreateNewInterestDto>().ReverseMap()
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
 
             CreateMap<Message, CreateMessageDto>().ReverseMap()

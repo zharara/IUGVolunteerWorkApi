@@ -8,7 +8,7 @@ using VolunteerWorkApi.Helpers.ErrorHandling;
 
 namespace VolunteerWorkApi.Services.VolunteerStudentTaskAccomplishes
 {
-    public class VolunteerStudentTaskAccomplishService 
+    public class VolunteerStudentTaskAccomplishService
         : IVolunteerStudentTaskAccomplishService
     {
         private readonly ApplicationDbContext _dbContext;
@@ -69,7 +69,7 @@ namespace VolunteerWorkApi.Services.VolunteerStudentTaskAccomplishes
 
             entity.CreatedBy = currentUserId;
 
-            await _dbContext.VolunteerStudentTaskAccomplishes.AddAsync(entity);
+            var addedEntity = await _dbContext.VolunteerStudentTaskAccomplishes.AddAsync(entity);
 
             int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -78,14 +78,24 @@ namespace VolunteerWorkApi.Services.VolunteerStudentTaskAccomplishes
                 throw new ApiDataException();
             }
 
-            return _mapper.Map<VolunteerStudentTaskAccomplishDto>(entity);
+            var item = _dbContext.VolunteerStudentTaskAccomplishes
+                .Include(x => x.VolunteerStudent)
+                .Include(x => x.VolunteerProgramTask)
+                .Where(x => x.Id == addedEntity.Entity.Id)
+                .FirstOrDefault();
+
+            return _mapper.Map<VolunteerStudentTaskAccomplishDto>(item);
         }
 
         public async Task<VolunteerStudentTaskAccomplishDto> Update(
             UpdateVolunteerStudentTaskAccomplishDto updateEntityDto,
             long currentUserId)
         {
-            var entity = _dbContext.VolunteerStudentTaskAccomplishes.Find(updateEntityDto.Id);
+            var entity = _dbContext.VolunteerStudentTaskAccomplishes
+                  .Include(x => x.VolunteerStudent)
+                  .Include(x => x.VolunteerProgramTask)
+                  .Where(x => x.Id == updateEntityDto.Id)
+                  .FirstOrDefault();
 
             if (entity == null)
             {

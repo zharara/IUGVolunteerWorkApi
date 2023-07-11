@@ -9,7 +9,5 @@
         public ICollection<VolunteerProgram> VolunteerPrograms { get; set; }
 
         public ICollection<Skill> Skills { get; set; }
-
-        public ICollection<Interest> Interests { get; set; }
     }
 }

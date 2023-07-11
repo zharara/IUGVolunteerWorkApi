@@ -29,8 +29,6 @@ namespace VolunteerWorkApi.Entities
 
         public int RequiredVolunteerStudentsNumber { get; set; }
 
-        public ICollection<Interest> VolunteerInterests { get; set; }
-
         public ICollection<Skill> VolunteerSkills { get; set; }
 
         public string? ApplicantQualifications { get; set; }

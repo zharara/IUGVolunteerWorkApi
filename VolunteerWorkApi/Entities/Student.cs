@@ -13,8 +13,8 @@ namespace VolunteerWorkApi.Entities
 
         public string? Biography { get; set; }
 
-        public ICollection<Skill> Skills { get; set; }
+        public bool IsEnrolledInProgram { get; set; }
 
-        public ICollection<Interest> Interests { get; set; } 
+        public ICollection<Skill> Skills { get; set; }
     }
 }

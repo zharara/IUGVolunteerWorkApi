@@ -1,5 +1,4 @@
 ﻿using VolunteerWorkApi.Dtos.ApplicationUser;
-using VolunteerWorkApi.Dtos.Interest;
 using VolunteerWorkApi.Dtos.Skill;
 
 namespace VolunteerWorkApi.Dtos.Student
@@ -16,8 +15,8 @@ namespace VolunteerWorkApi.Dtos.Student
 
         public string? Biography { get; set; }
 
-        public ICollection<SkillDto> Skills { get; set; }
+        public bool IsEnrolledInProgram { get; set; }
 
-        public ICollection<InterestDto> Interests { get; set; }
+        public ICollection<SkillDto> Skills { get; set; }
     }
 }

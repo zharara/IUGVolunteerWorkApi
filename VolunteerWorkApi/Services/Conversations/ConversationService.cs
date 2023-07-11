@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Data;
 using VolunteerWorkApi.Dtos.Conversation;
@@ -24,6 +25,10 @@ namespace VolunteerWorkApi.Services.Conversations
             return _dbContext.Conversations
                 .Where(x => x.User1Id == currentUserId
                     || x.User2Id == currentUserId)
+                .Include(x => x.User1)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.User2)
+                .ThenInclude(x => x.ProfilePicture)
                 .Select(x => _mapper.Map<ConversationDto>(x))
                 .ToList();
         }
@@ -40,6 +45,10 @@ namespace VolunteerWorkApi.Services.Conversations
                     x => x.User1Id == recieverId || x.User2Id == recieverId)
                  .Skip(skipCount ?? 0)
                  .Take(maxResultCount ?? ApiConstants.MaxResultCount)
+                 .Include(x => x.User1)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.User2)
+                 .ThenInclude(x => x.ProfilePicture)
                  .Select(x => _mapper.Map<ConversationDto>(x))
                  .ToList();
         }
@@ -50,6 +59,10 @@ namespace VolunteerWorkApi.Services.Conversations
                 .Where(x =>
                 (x.User1Id == user1Id && x.User2Id == user2Id)
                 || (x.User1Id == user2Id && x.User2Id == user1Id))
+                .Include(x => x.User1)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.User2)
+                .ThenInclude(x => x.ProfilePicture)
                 .Select(x => _mapper.Map<ConversationDto>(x))
                 .FirstOrDefault();
         }
@@ -93,7 +106,7 @@ namespace VolunteerWorkApi.Services.Conversations
 
             entity.CreatedBy = currentUserId;
 
-            await _dbContext.Conversations.AddAsync(entity);
+            var addedEntity = await _dbContext.Conversations.AddAsync(entity);
 
             int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -102,7 +115,15 @@ namespace VolunteerWorkApi.Services.Conversations
                 throw new ApiDataException();
             }
 
-            return _mapper.Map<ConversationDto>(entity);
+            var item = _dbContext.Conversations
+                        .Include(x => x.User1)
+                        .ThenInclude(x => x.ProfilePicture)
+                        .Include(x => x.User2)
+                        .ThenInclude(x => x.ProfilePicture)
+                        .Where(x => x.Id == addedEntity.Entity.Id)
+                        .FirstOrDefault();
+
+            return _mapper.Map<ConversationDto>(item);
         }
 
         public async Task<ConversationDto> Remove(long id)

@@ -1,44 +1,66 @@
-﻿using CorePush.Firebase;
+﻿using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using VolunteerWorkApi.Models;
 
 namespace VolunteerWorkApi.Services.FCMNotifications
 {
     public class FCMNotificationsService : IFCMNotificationsService
     {
-        private readonly FirebaseSender _firebaseSender;
+        private readonly ILogger<FCMNotificationsService> _logger;
+        private readonly FirebaseApp _app;
 
-        public FCMNotificationsService()
+        public FCMNotificationsService(
+            IWebHostEnvironment env,
+            ILogger<FCMNotificationsService> logger)
         {
-            string firebaseSettingsJson = File.ReadAllText(
-                Path.Combine(Directory.GetCurrentDirectory(),
-                "volunteerworkapp-02d75fe3aaaf.json"));
+            _logger = logger;
 
-            HttpClient httpClient = new();
+            try
+            {
+                var path = Path.Combine(
+                    env.ContentRootPath, "firebase-key.json");
 
-            _firebaseSender = new FirebaseSender(firebaseSettingsJson, httpClient);
+                _app = FirebaseApp.Create(new AppOptions()
+                {
+                    Credential = GoogleCredential.FromFile(path)
+                }, "iugvw");
+            }
+            catch
+            {
+                _app = FirebaseApp.GetInstance("iugvw");
+            }
         }
 
-        public void SendNotification(FCMNotification fcmNotification)
+        public async Task SendNotification(FCMNotification fcmNotification)
         {
-            var payload = new
+            try
             {
-                message = new
+                var fcm = FirebaseAdmin.Messaging.
+                    FirebaseMessaging.GetMessaging(_app);
+                FirebaseAdmin.Messaging.Message message = new FirebaseAdmin.Messaging.Message()
                 {
-                    token = fcmNotification.FCMToken,
-                    notification = new
+                    Notification = new FirebaseAdmin.Messaging.Notification
                     {
-                        title = fcmNotification.Title,
-                        body = fcmNotification.Body,
+                        Title = fcmNotification.Title,
+                        Body = fcmNotification.Body,
                     },
-                    data = new
-                    {
-                        id = fcmNotification.ItemId.ToString(),
-                        page = ((int)fcmNotification.Page).ToString(),
-                    },
-                }
-            };
+                    Data = new Dictionary<string, string>()
+                 {
+                     { "id", fcmNotification.ItemId.ToString() ?? "" },
+                     { "page", ((int)fcmNotification.Page).ToString() },
+                 },
 
-            _firebaseSender.SendAsync(payload);
+                    Token = fcmNotification.FCMToken
+                };
+
+                var result = await fcm.SendAsync(message);
+
+                _logger.LogInformation(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
         }
     }
 }

@@ -1,10 +1,12 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Data;
 using VolunteerWorkApi.Dtos.VolunteerStudent;
 using VolunteerWorkApi.Extensions;
 using VolunteerWorkApi.Helpers.ErrorHandling;
+using VolunteerWorkApi.Services.Students;
 
 namespace VolunteerWorkApi.Services.VolunteerStudents
 {
@@ -12,11 +14,14 @@ namespace VolunteerWorkApi.Services.VolunteerStudents
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly IMapper _mapper;
+        private readonly IStudentService _studentService;
 
-        public VolunteerStudentService(ApplicationDbContext dbContext, IMapper mapper)
+        public VolunteerStudentService(ApplicationDbContext dbContext,
+            IMapper mapper, IStudentService studentService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
+            _studentService = studentService;
         }
 
         public IEnumerable<VolunteerStudentDto> GetAll()
@@ -25,6 +30,9 @@ namespace VolunteerWorkApi.Services.VolunteerStudents
                 .Include(x => x.Student)
                 .Include(x => x.VolunteerProgram)
                 .ThenInclude(x => x.Organization)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.VolunteerProgram)
+                .ThenInclude(x => x.Category)
                 .Select(x => _mapper.Map<VolunteerStudentDto>(x))
                 .ToList();
         }
@@ -37,6 +45,9 @@ namespace VolunteerWorkApi.Services.VolunteerStudents
                  .Include(x => x.Student)
                  .Include(x => x.VolunteerProgram)
                  .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerProgram)
+                 .ThenInclude(x => x.Category)
                  .WhereIf(volunteerProgramId != null,
                     x => x.VolunteerProgramId == volunteerProgramId)
                  .WhereIf(!string.IsNullOrEmpty(filter),
@@ -61,44 +72,130 @@ namespace VolunteerWorkApi.Services.VolunteerStudents
             return _mapper.Map<VolunteerStudentDto>(data);
         }
 
+        public VolunteerStudentDto? GetOfStudentById(long studentId)
+        {
+            var data = _dbContext.VolunteerStudents
+                .Include(x => x.Student)
+                .Include(x => x.VolunteerProgram)
+                .ThenInclude(x => x.Organization)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.VolunteerProgram)
+                .ThenInclude(x => x.Category)
+                .Where(x => x.StudentId == studentId)
+                .Select(x => _mapper.Map<VolunteerStudentDto>(x))
+                .FirstOrDefault();
+
+            if (data == null)
+            {
+                return null;
+            }
+
+            return data;
+        }
+
         public async Task<VolunteerStudentDto> Create(
             CreateVolunteerStudentDto createEntityDto, long currentUserId)
         {
-            var entity = _mapper.Map<VolunteerStudent>(createEntityDto);
+            using var transaction = _dbContext.Database.BeginTransaction();
 
-            entity.CreatedBy = currentUserId;
-
-            await _dbContext.VolunteerStudents.AddAsync(entity);
-
-            int effectedRows = await _dbContext.SaveChangesAsync();
-
-            if (!(effectedRows > 0))
+            try
             {
-                throw new ApiDataException();
-            }
+                var existingVolunteerStudent = _dbContext.VolunteerStudents.FirstOrDefault(
+                     x => x.StudentId == createEntityDto.StudentId);
 
-            return _mapper.Map<VolunteerStudentDto>(entity);
+                if (existingVolunteerStudent != null)
+                {
+                    throw new ApiResponseException(
+                      HttpStatusCode.BadRequest,
+                      ErrorMessages.ConflictError,
+                      ErrorMessages.StudentAlreayEnrollerInProgram,
+                      existingVolunteerStudent.VolunteerProgram.Title);
+                }
+
+                var entity = _mapper.Map<VolunteerStudent>(createEntityDto);
+
+                entity.CreatedBy = currentUserId;
+
+               var addedEntity = await _dbContext.VolunteerStudents.AddAsync(entity);
+
+                int effectedRows = await _dbContext.SaveChangesAsync();
+
+                if (!(effectedRows > 0))
+                {
+                    throw new ApiDataException();
+                }
+
+                await _studentService.StudentHasEnrolledInProgram(createEntityDto.StudentId);
+
+                var item = _dbContext.VolunteerStudents
+                .Include(x => x.Student)
+                .Include(x => x.VolunteerProgram)
+                .ThenInclude(x => x.Organization)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.VolunteerProgram)
+                .ThenInclude(x => x.Category)
+                .Where(x => x.StudentId == addedEntity.Entity.Id)
+                .Select(x => _mapper.Map<VolunteerStudentDto>(x))
+                .FirstOrDefault();
+
+                transaction.Commit();
+
+                return _mapper.Map<VolunteerStudentDto>(item);
+            }
+            catch
+            {
+                transaction.Rollback();
+
+                throw;
+            }
         }
 
         public async Task<VolunteerStudent> CreateEntity(
             long studentId, long volunteerProgramId)
         {
-            var entity = new VolunteerStudent
+            using var transaction = _dbContext.Database.BeginTransaction();
+
+            try
             {
-                StudentId = studentId,
-                VolunteerProgramId = volunteerProgramId
-            };
+                var existingVolunteerStudent = _dbContext.VolunteerStudents.FirstOrDefault(
+                    x => x.StudentId == studentId);
 
-            await _dbContext.VolunteerStudents.AddAsync(entity);
+                if (existingVolunteerStudent != null)
+                {
+                    throw new ApiResponseException(
+                      HttpStatusCode.BadRequest,
+                      ErrorMessages.ConflictError,
+                      ErrorMessages.StudentAlreayEnrollerInProgram,
+                      existingVolunteerStudent.VolunteerProgram.Title);
+                }
 
-            int effectedRows = await _dbContext.SaveChangesAsync();
+                var entity = new VolunteerStudent
+                {
+                    StudentId = studentId,
+                    VolunteerProgramId = volunteerProgramId
+                };
 
-            if (!(effectedRows > 0))
-            {
-                throw new ApiDataException();
+                await _dbContext.VolunteerStudents.AddAsync(entity);
+
+                int effectedRows = await _dbContext.SaveChangesAsync();
+
+                if (!(effectedRows > 0))
+                {
+                    throw new ApiDataException();
+                }
+
+                await _studentService.StudentHasEnrolledInProgram(studentId);
+
+                transaction.Commit();
+
+                return entity;
             }
+            catch
+            {
+                transaction.Rollback();
 
-            return entity;
+                throw;
+            }
         }
 
         public async Task<VolunteerStudentDto> UpdateOrganizationAssessment(

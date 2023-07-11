@@ -44,12 +44,13 @@ namespace VolunteerWorkApi.Controllers
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
 
         public IActionResult GetList(
-            string? filter, int? skipCount, int? maxResultCount)
+            string? filter, bool? isNotVolunteer,
+            int? skipCount, int? maxResultCount)
         {
             IEnumerable<StudentDto> data =
                 _studentService
-                .GetList(filter: filter, skipCount: skipCount,
-                maxResultCount: maxResultCount);
+                .GetList(filter: filter, isNotVolunteer: isNotVolunteer,
+                skipCount: skipCount, maxResultCount: maxResultCount);
 
             return Ok(data);
         }
@@ -118,16 +119,16 @@ namespace VolunteerWorkApi.Controllers
             return Ok(data);
         }
 
-        [Authorize(Roles = $"{UsersRoles.Management}, {UsersRoles.Student}")]
+        [Authorize(Roles = UsersRoles.Management)]
         [HttpPut]
         [ProducesResponseType(typeof(StudentDto),
-            (int)HttpStatusCode.OK)]
+    (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.NotFound)]
 
-        public async Task<IActionResult> UpdateInterests(
-            [FromBody] UpdateStudentInterests updateStudentInterests)
+        public async Task<IActionResult> UpdateByManagement(
+            [FromBody] UpdateStudentByManagementDto updateStudentByManagementDto)
         {
             var userId = ParsingHelpers.ParseUserId(
                     HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
@@ -138,8 +139,8 @@ namespace VolunteerWorkApi.Controllers
             }
 
             StudentDto data =
-                await _studentService.UpdateInterests(
-                updateStudentInterests, (long)userId);
+                await _studentService.UpdateByManagement(
+                updateStudentByManagementDto, (long)userId);
 
             return Ok(data);
         }

@@ -72,6 +72,26 @@ namespace VolunteerWorkApi.Controllers
             return Ok(data);
         }
 
+        [HttpGet("{studentId}")]
+        [ProducesResponseType(typeof(VolunteerStudentDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.NotFound)]
+
+        public IActionResult GetOfStudentById(long studentId)
+        {
+            VolunteerStudentDto? data =
+                _volunteerStudentService.GetOfStudentById(studentId: studentId);
+
+            if (data == null)
+            {
+                return NoContent();
+            }
+
+            return Ok(data);
+        }
+
         [Authorize(Roles = $"{UsersRoles.Management}, {UsersRoles.Organization}")]
         [HttpPost]
         [ProducesResponseType(typeof(VolunteerStudentDto),

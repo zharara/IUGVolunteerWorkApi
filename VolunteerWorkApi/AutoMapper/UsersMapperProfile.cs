@@ -46,7 +46,7 @@ namespace VolunteerWorkApi.AutoMapper
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
             CreateMap<Student, UpdateStudentDto>().ReverseMap()
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
-            CreateMap<Student, UpdateStudentUniversityIdNumberDto>().ReverseMap()
+            CreateMap<Student, UpdateStudentByManagementDto>().ReverseMap()
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));
             CreateMap<Student, StudentDto>().ReverseMap()
                 .ForAllMembers(opt => opt.Condition((src, dest, sourceMember) => sourceMember != null));

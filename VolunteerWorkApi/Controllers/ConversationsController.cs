@@ -73,6 +73,38 @@ namespace VolunteerWorkApi.Controllers
             return Ok(data);
         }
 
+        [HttpGet]
+        [ProducesResponseType(typeof(ConversationDto),
+            (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(Nullable),
+            (int)HttpStatusCode.NoContent)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.InternalServerError)]
+
+        public IActionResult GetBetween(long peerId)
+        {
+            var userId = ParsingHelpers.ParseUserId(
+                HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            ConversationDto? item =
+                _conversationService
+                .GetBetween(
+                    user1Id: (long)userId,
+                    user2Id: peerId);
+
+            if(item == null)
+            {
+                return NoContent();
+            }
+
+            return Ok(item);
+        }
+
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(ConversationDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiError), (int)HttpStatusCode.BadRequest)]

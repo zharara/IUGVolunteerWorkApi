@@ -40,8 +40,9 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
         {
             return _dbContext.VolunteerPrograms
                 .Include(x => x.Organization)
-                .Include(x => x.Category)
-                .Include(x => x.Logo)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.Category)
+                 .Include(x => x.Logo)
                 .Select(x => _mapper.Map<VolunteerProgramDto>(x))
                 .ToList();
         }
@@ -52,6 +53,7 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
         {
             return _dbContext.VolunteerPrograms
                  .Include(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
                  .Include(x => x.Category)
                  .Include(x => x.Logo)
                  .WhereIf(isInternalProgram != null,
@@ -109,7 +111,7 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
 
                 entity.CreatedBy = currentUserId;
 
-                await _dbContext.VolunteerPrograms.AddAsync(entity);
+                var addedEntity = await _dbContext.VolunteerPrograms.AddAsync(entity);
 
                 int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -135,9 +137,17 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
                     }
                 }
 
+                var item = _dbContext.VolunteerPrograms
+                          .Include(x => x.Organization)
+                         .ThenInclude(x => x.ProfilePicture)
+                         .Include(x => x.Category)
+                         .Include(x => x.Logo)
+                          .Where(x => x.Id == addedEntity.Entity.Id)
+                          .FirstOrDefault();
+
                 transaction.Commit();
 
-                return _mapper.Map<VolunteerProgramDto>(entity);
+                return _mapper.Map<VolunteerProgramDto>(item);
             }
             catch
             {
@@ -178,7 +188,7 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
 
                 entity.CreatedBy = currentUserId;
 
-                await _dbContext.VolunteerPrograms.AddAsync(entity);
+                var addedEntity = await _dbContext.VolunteerPrograms.AddAsync(entity);
 
                 int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -187,9 +197,17 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
                     throw new ApiDataException();
                 }
 
+                var item = _dbContext.VolunteerPrograms
+                        .Include(x => x.Organization)
+                       .ThenInclude(x => x.ProfilePicture)
+                       .Include(x => x.Category)
+                       .Include(x => x.Logo)
+                        .Where(x => x.Id == addedEntity.Entity.Id)
+                        .FirstOrDefault();
+
                 transaction.Commit();
 
-                return _mapper.Map<VolunteerProgramDto>(entity);
+                return _mapper.Map<VolunteerProgramDto>(item);
             }
             catch
             {
@@ -206,7 +224,13 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
 
             try
             {
-                var entity = _dbContext.VolunteerPrograms.Find(updateEntityDto.Id);
+                var entity = _dbContext.VolunteerPrograms
+                        .Include(x => x.Organization)
+                       .ThenInclude(x => x.ProfilePicture)
+                       .Include(x => x.Category)
+                       .Include(x => x.Logo)
+                        .Where(x => x.Id == updateEntityDto.Id)
+                        .FirstOrDefault();
 
                 if (entity == null)
                 {
@@ -255,7 +279,13 @@ namespace VolunteerWorkApi.Services.VolunteerPrograms
 
             try
             {
-                var entity = _dbContext.VolunteerPrograms.Find(updateEntityDto.Id);
+                var entity = _dbContext.VolunteerPrograms
+                            .Include(x => x.Organization)
+                           .ThenInclude(x => x.ProfilePicture)
+                           .Include(x => x.Category)
+                           .Include(x => x.Logo)
+                            .Where(x => x.Id == updateEntityDto.Id)
+                            .FirstOrDefault();
 
                 if (entity == null)
                 {

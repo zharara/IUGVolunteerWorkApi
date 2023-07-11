@@ -69,7 +69,7 @@ namespace VolunteerWorkApi.Services.VolunteerStudentWorkAttendances
 
             entity.CreatedBy = currentUserId;
 
-            await _dbContext.VolunteerStudentWorkAttendances.AddAsync(entity);
+            var addedEntity = await _dbContext.VolunteerStudentWorkAttendances.AddAsync(entity);
 
             int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -78,14 +78,24 @@ namespace VolunteerWorkApi.Services.VolunteerStudentWorkAttendances
                 throw new ApiDataException();
             }
 
-            return _mapper.Map<VolunteerStudentWorkAttendanceDto>(entity);
+            var item = _dbContext.VolunteerStudentWorkAttendances
+                      .Include(x => x.VolunteerStudent)
+                      .Include(x => x.VolunteerProgramWorkDay)
+                      .Where(x => x.Id == addedEntity.Entity.Id)
+                      .FirstOrDefault();
+
+            return _mapper.Map<VolunteerStudentWorkAttendanceDto>(item);
         }
 
         public async Task<VolunteerStudentWorkAttendanceDto> Update(
             UpdateVolunteerStudentWorkAttendanceDto updateEntityDto,
             long currentUserId)
         {
-            var entity = _dbContext.VolunteerStudentWorkAttendances.Find(updateEntityDto.Id);
+            var entity = _dbContext.VolunteerStudentWorkAttendances
+                      .Include(x => x.VolunteerStudent)
+                      .Include(x => x.VolunteerProgramWorkDay)
+                      .Where(x => x.Id == updateEntityDto.Id)
+                      .FirstOrDefault();
 
             if (entity == null)
             {

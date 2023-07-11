@@ -4,10 +4,14 @@ using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Data;
 using VolunteerWorkApi.Dtos.Conversation;
 using VolunteerWorkApi.Dtos.Message;
+using VolunteerWorkApi.Enums;
 using VolunteerWorkApi.Extensions;
 using VolunteerWorkApi.Helpers.ErrorHandling;
 using VolunteerWorkApi.Models;
 using VolunteerWorkApi.Services.Conversations;
+using VolunteerWorkApi.Services.FCMNotifications;
+using VolunteerWorkApi.Services.Notifications;
+using VolunteerWorkApi.Services.Users;
 
 namespace VolunteerWorkApi.Services.Messages
 {
@@ -16,13 +20,19 @@ namespace VolunteerWorkApi.Services.Messages
         private readonly ApplicationDbContext _dbContext;
         private readonly IMapper _mapper;
         private readonly IConversationService _conversationService;
+        private readonly IUsersService _usersService;
+        private readonly IFCMNotificationsService _fCMNotificationsService;
 
         public MessageService(ApplicationDbContext dbContext,
-            IMapper mapper, IConversationService conversationService)
+            IMapper mapper, IConversationService conversationService,
+            IUsersService usersService,
+            IFCMNotificationsService fCMNotificationsService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _conversationService = conversationService;
+            _usersService = usersService;
+            _fCMNotificationsService = fCMNotificationsService;
         }
 
         public IEnumerable<MessageDto> GetList(
@@ -86,6 +96,20 @@ namespace VolunteerWorkApi.Services.Messages
                 if (!(effectedRows > 0))
                 {
                     throw new Exception();
+                }
+
+                var user = await _usersService.GetUserById(createEntityDto.ReceiverId);
+
+                if (!string.IsNullOrEmpty(user.FCMToken))
+                {
+                    _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = user.FCMToken!,
+                        Title = NotificationsMessages.NewMessage,
+                        Body = NotificationsMessages.YouHaveNewMessage,
+                        ItemId = conversationId,
+                        Page = NotificationPage.Chats,
+                    });
                 }
 
                 transaction.Commit();

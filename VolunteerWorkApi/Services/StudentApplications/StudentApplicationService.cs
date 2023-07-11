@@ -1,11 +1,9 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using System.Net;
 using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Data;
 using VolunteerWorkApi.Dtos.StudentApplication;
-using VolunteerWorkApi.Dtos.VolunteerStudent;
 using VolunteerWorkApi.Enums;
 using VolunteerWorkApi.Extensions;
 using VolunteerWorkApi.Helpers.ErrorHandling;
@@ -13,7 +11,6 @@ using VolunteerWorkApi.Models;
 using VolunteerWorkApi.Services.FCMNotifications;
 using VolunteerWorkApi.Services.Notifications;
 using VolunteerWorkApi.Services.SavedFiles;
-using VolunteerWorkApi.Services.Students;
 using VolunteerWorkApi.Services.VolunteerOpportunities;
 
 namespace VolunteerWorkApi.Services.StudentApplications
@@ -24,7 +21,6 @@ namespace VolunteerWorkApi.Services.StudentApplications
         private readonly IMapper _mapper;
         private readonly ISavedFileService _savedFileService;
         private readonly IVolunteerOpportunityService _volunteerOpportunityService;
-        private readonly IStudentService _studentService;
         private readonly INotificationService _notificationService;
         private readonly IFCMNotificationsService _fCMNotificationsService;
 
@@ -32,7 +28,6 @@ namespace VolunteerWorkApi.Services.StudentApplications
             ApplicationDbContext dbContext,
             IMapper mapper, ISavedFileService savedFileService,
             IVolunteerOpportunityService volunteerOpportunityService,
-            IStudentService studentService,
             INotificationService notificationService,
             IFCMNotificationsService fCMNotificationsService)
         {
@@ -40,7 +35,6 @@ namespace VolunteerWorkApi.Services.StudentApplications
             _mapper = mapper;
             _savedFileService = savedFileService;
             _volunteerOpportunityService = volunteerOpportunityService;
-            _studentService = studentService;
             _notificationService = notificationService;
             _fCMNotificationsService = fCMNotificationsService;
         }
@@ -51,6 +45,9 @@ namespace VolunteerWorkApi.Services.StudentApplications
                 .Include(x => x.Student)
                 .Include(x => x.VolunteerOpportunity)
                 .ThenInclude(x => x.Organization)
+                .ThenInclude(x => x.ProfilePicture)
+                .Include(x => x.VolunteerOpportunity)
+                .ThenInclude(x => x.Category)
                 .Select(x => _mapper.Map<StudentApplicationDto>(x))
                 .ToList();
         }
@@ -64,6 +61,9 @@ namespace VolunteerWorkApi.Services.StudentApplications
                  .Include(x => x.Student)
                  .Include(x => x.VolunteerOpportunity)
                  .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Category)
                  .WhereIf(studentId != null,
                     x => x.StudentId == studentId)
                  .WhereIf(volunteerOpportunityId != null,
@@ -81,6 +81,11 @@ namespace VolunteerWorkApi.Services.StudentApplications
         {
             return _dbContext.StudentApplications
                 .Include(x => x.Student)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Category)
                 .Where(x => x.VolunteerOpportunityId == volunteerOpportunityId)
                 .ToList();
         }
@@ -100,86 +105,223 @@ namespace VolunteerWorkApi.Services.StudentApplications
         public async Task<StudentApplicationDto> OrganizationAcceptApplication(
             long studentApplicationId, long organizationId)
         {
-            var entity = _dbContext.StudentApplications.Find(studentApplicationId);
+            using var transaction = _dbContext.Database.BeginTransaction();
 
-            if (entity == null)
+            try
             {
-                throw new ApiNotFoundException();
-            }
+                var entity = _dbContext.StudentApplications
+                .Include(x => x.Student)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerOpportunity)
+                .ThenInclude(x => x.Category)
+                .Where(x => x.Id == studentApplicationId)
+                .FirstOrDefault();
 
-            if (entity.VolunteerOpportunity.OrganizationId != organizationId)
+                if (entity == null)
+                {
+                    throw new ApiNotFoundException();
+                }
+
+                if (entity.VolunteerOpportunity.OrganizationId != organizationId)
+                {
+                    throw new ApiResponseException(
+                        HttpStatusCode.Unauthorized,
+                        ErrorMessages.AuthError,
+                        ErrorMessages.NoPermissionsForAccount);
+                }
+
+                entity.StatusForOrganization = ApplicationStatus.Approved;
+
+                entity.ModifiedDate = DateTime.UtcNow;
+
+                entity.ModifiedBy = organizationId;
+
+                _dbContext.StudentApplications.Update(entity);
+
+                int effectedRows = await _dbContext.SaveChangesAsync();
+
+                if (!(effectedRows > 0))
+                {
+                    throw new ApiDataException();
+                }
+
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.VolunteerApplicationAccepted,
+                    Body = NotificationsMessages.ApplicationAcceptedByOrganization,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId = entity.Student.Id,
+                });
+
+                if (!string.IsNullOrEmpty(entity.Student.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = entity.Student.FCMToken!,
+                        Title = NotificationsMessages.VolunteerApplicationAccepted,
+                        Body = NotificationsMessages.ApplicationAcceptedByOrganization,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                List<ManagementEmployee> managementAccounts = _dbContext.ManagementEmployees.ToList();
+
+                foreach (ManagementEmployee managementEmployee in managementAccounts)
+                {
+                    await _notificationService.Create(new CreateNotification
+                    {
+                        Title = NotificationsMessages.VolunteerApplicationAccepted,
+                        Body = NotificationsMessages.ApplicationAcceptedByOrganization,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                        ApplicationUserId = managementEmployee.Id,
+                    });
+
+                    if (!string.IsNullOrEmpty(
+                        managementEmployee.FCMToken))
+                    {
+                        await _fCMNotificationsService.SendNotification(new FCMNotification
+                        {
+                            FCMToken = managementEmployee.FCMToken!,
+                            Title = NotificationsMessages.VolunteerApplicationAccepted,
+                            Body = NotificationsMessages.ApplicationAcceptedByOrganization,
+                            ItemId = entity.Id,
+                            Page = NotificationPage.Notifications,
+                        });
+                    }
+                }
+
+                transaction.Commit();
+
+                return _mapper.Map<StudentApplicationDto>(entity);
+            }
+            catch
             {
-                throw new ApiResponseException(
-                    HttpStatusCode.Unauthorized,
-                    ErrorMessages.AuthError,
-                    ErrorMessages.NoPermissionsForAccount);
+                transaction.Rollback();
+
+                throw;
             }
-
-            entity.StatusForOrganization = ApplicationStatus.Approved;
-
-            entity.ModifiedDate = DateTime.UtcNow;
-
-            entity.ModifiedBy = organizationId;
-
-            _dbContext.StudentApplications.Update(entity);
-
-            int effectedRows = await _dbContext.SaveChangesAsync();
-
-            if (!(effectedRows > 0))
-            {
-                throw new ApiDataException();
-            }
-
-            return _mapper.Map<StudentApplicationDto>(entity);
         }
 
         public async Task<StudentApplicationDto> OrganizationRejectApplication(
             RejectStudentApplication rejectStudentApplicationDto,
             long organizationId)
         {
-            var entity = _dbContext.StudentApplications
-                .Find(rejectStudentApplicationDto.StudentApplicationId);
+            using var transaction = _dbContext.Database.BeginTransaction();
 
-            if (entity == null)
+            try
             {
-                throw new ApiNotFoundException();
-            }
+                var entity = _dbContext.StudentApplications
+                .Include(x => x.Student)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerOpportunity)
+                .ThenInclude(x => x.Category)
+                .Where(x => x.Id == rejectStudentApplicationDto.StudentApplicationId)
+                .FirstOrDefault();
 
-            if (entity.VolunteerOpportunity.OrganizationId != organizationId)
+                if (entity == null)
+                {
+                    throw new ApiNotFoundException();
+                }
+
+                if (entity.VolunteerOpportunity.OrganizationId != organizationId)
+                {
+                    throw new ApiResponseException(
+                         HttpStatusCode.Unauthorized,
+                        ErrorMessages.AuthError,
+                        ErrorMessages.NoPermissionsForAccount);
+                }
+
+                if (string.IsNullOrEmpty(rejectStudentApplicationDto.RejectionReason))
+                {
+                    throw new ApiResponseException(
+                         HttpStatusCode.BadRequest,
+                        ErrorMessages.InputError,
+                        ErrorMessages.MustStateRejectionReason);
+                }
+
+                entity.StatusForOrganization = ApplicationStatus.Rejected;
+
+                entity.OrganizationRejectionReason =
+                    rejectStudentApplicationDto.RejectionReason;
+
+                entity.ModifiedDate = DateTime.UtcNow;
+
+                entity.ModifiedBy = organizationId;
+
+                _dbContext.StudentApplications.Update(entity);
+
+                int effectedRows = await _dbContext.SaveChangesAsync();
+
+                if (!(effectedRows > 0))
+                {
+                    throw new ApiDataException();
+                }
+
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.VolunteerApplicationRejected,
+                    Body = NotificationsMessages.ApplicationRejectedByOrganization,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId = entity.Student.Id,
+                });
+
+                if (!string.IsNullOrEmpty(entity.Student.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = entity.Student.FCMToken!,
+                        Title = NotificationsMessages.VolunteerApplicationRejected,
+                        Body = NotificationsMessages.ApplicationRejectedByOrganization,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                List<ManagementEmployee> managementAccounts = _dbContext.ManagementEmployees.ToList();
+
+                foreach (ManagementEmployee managementEmployee in managementAccounts)
+                {
+                    await _notificationService.Create(new CreateNotification
+                    {
+                        Title = NotificationsMessages.VolunteerApplicationRejected,
+                        Body = NotificationsMessages.ApplicationRejectedByOrganization,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                        ApplicationUserId = managementEmployee.Id,
+                    });
+
+                    if (!string.IsNullOrEmpty(
+                        managementEmployee.FCMToken))
+                    {
+                        await _fCMNotificationsService.SendNotification(new FCMNotification
+                        {
+                            FCMToken = managementEmployee.FCMToken!,
+                            Title = NotificationsMessages.VolunteerApplicationRejected,
+                            Body = NotificationsMessages.ApplicationRejectedByOrganization,
+                            ItemId = entity.Id,
+                            Page = NotificationPage.Notifications,
+                        });
+                    }
+                }
+
+                transaction.Commit();
+
+                return _mapper.Map<StudentApplicationDto>(entity);
+            }
+            catch
             {
-                throw new ApiResponseException(
-                     HttpStatusCode.Unauthorized,
-                    ErrorMessages.AuthError,
-                    ErrorMessages.NoPermissionsForAccount);
+                transaction.Rollback();
+
+                throw;
             }
-
-            if (string.IsNullOrEmpty(rejectStudentApplicationDto.RejectionReason))
-            {
-                throw new ApiResponseException(
-                     HttpStatusCode.BadRequest,
-                    ErrorMessages.InputError,
-                    ErrorMessages.MustStateRejectionReason);
-            }
-
-            entity.StatusForOrganization = ApplicationStatus.Rejected;
-
-            entity.OrganizationRejectionReason =
-                rejectStudentApplicationDto.RejectionReason;
-
-            entity.ModifiedDate = DateTime.UtcNow;
-
-            entity.ModifiedBy = organizationId;
-
-            _dbContext.StudentApplications.Update(entity);
-
-            int effectedRows = await _dbContext.SaveChangesAsync();
-
-            if (!(effectedRows > 0))
-            {
-                throw new ApiDataException();
-            }
-
-            return _mapper.Map<StudentApplicationDto>(entity);
         }
 
         public async Task<StudentApplicationDto> ManagementAcceptApplication(
@@ -189,7 +331,15 @@ namespace VolunteerWorkApi.Services.StudentApplications
 
             try
             {
-                var entity = _dbContext.StudentApplications.Find(studentApplicationId);
+                var entity = _dbContext.StudentApplications
+                .Include(x => x.Student)
+                 .Include(x => x.VolunteerOpportunity)
+                 .ThenInclude(x => x.Organization)
+                 .ThenInclude(x => x.ProfilePicture)
+                 .Include(x => x.VolunteerOpportunity)
+                .ThenInclude(x => x.Category)
+                .Where(x => x.Id == studentApplicationId)
+                .FirstOrDefault();
 
                 if (entity == null)
                 {
@@ -219,7 +369,14 @@ namespace VolunteerWorkApi.Services.StudentApplications
                     throw new ApiDataException();
                 }
 
-                var student = _studentService.GetById(entity.StudentId);
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.VolunteerApplicationAccepted,
+                    Body = NotificationsMessages.ApplicationAcceptedByManagement,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId = entity.Student.Id,
+                });
 
                 await _notificationService.Create(new CreateNotification
                 {
@@ -227,14 +384,28 @@ namespace VolunteerWorkApi.Services.StudentApplications
                     Body = NotificationsMessages.ApplicationAcceptedByManagement,
                     ItemId = entity.Id,
                     Page = NotificationPage.Notifications,
-                    ApplicationUserId = student.Id,
+                    ApplicationUserId =
+                    entity.VolunteerOpportunity.Organization.Id,
                 });
 
-                if (!string.IsNullOrEmpty(student.FCMToken))
+                if (!string.IsNullOrEmpty(entity.Student.FCMToken))
                 {
-                    _fCMNotificationsService.SendNotification(new FCMNotification
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
                     {
-                        FCMToken = student.FCMToken!,
+                        FCMToken = entity.Student.FCMToken!,
+                        Title = NotificationsMessages.VolunteerApplicationAccepted,
+                        Body = NotificationsMessages.ApplicationAcceptedByManagement,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                if (!string.IsNullOrEmpty(
+                    entity.VolunteerOpportunity.Organization.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = entity.VolunteerOpportunity.Organization.FCMToken!,
                         Title = NotificationsMessages.VolunteerApplicationAccepted,
                         Body = NotificationsMessages.ApplicationAcceptedByManagement,
                         ItemId = entity.Id,
@@ -258,33 +429,97 @@ namespace VolunteerWorkApi.Services.StudentApplications
          RejectStudentApplication rejectStudentApplicationDto,
          long currentUserId)
         {
-            var entity = _dbContext.StudentApplications
-                .Find(rejectStudentApplicationDto.StudentApplicationId);
+            using var transaction = _dbContext.Database.BeginTransaction();
 
-            if (entity == null)
+            try
             {
-                throw new ApiNotFoundException();
+                var entity = _dbContext.StudentApplications
+                    .Include(x => x.Student)
+                     .Include(x => x.VolunteerOpportunity)
+                     .ThenInclude(x => x.Organization)
+                     .ThenInclude(x => x.ProfilePicture)
+                     .Include(x => x.VolunteerOpportunity)
+                    .ThenInclude(x => x.Category)
+                    .Where(x => x.Id == rejectStudentApplicationDto.StudentApplicationId)
+                    .FirstOrDefault();
+
+                if (entity == null)
+                {
+                    throw new ApiNotFoundException();
+                }
+
+                entity.StatusForManagement = ApplicationStatus.Rejected;
+
+                entity.ManagementRejectionReason =
+                    rejectStudentApplicationDto.RejectionReason;
+
+                entity.ModifiedDate = DateTime.UtcNow;
+
+                entity.ModifiedBy = currentUserId;
+
+                _dbContext.StudentApplications.Update(entity);
+
+                int effectedRows = await _dbContext.SaveChangesAsync();
+
+                if (!(effectedRows > 0))
+                {
+                    throw new ApiDataException();
+                }
+
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.VolunteerApplicationRejected,
+                    Body = NotificationsMessages.ApplicationRejectedByManagement,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId = entity.Student.Id,
+                });
+
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.VolunteerApplicationRejected,
+                    Body = NotificationsMessages.ApplicationRejectedByManagement,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId =
+                    entity.VolunteerOpportunity.Organization.Id,
+                });
+
+                if (!string.IsNullOrEmpty(entity.Student.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = entity.Student.FCMToken!,
+                        Title = NotificationsMessages.VolunteerApplicationRejected,
+                        Body = NotificationsMessages.ApplicationRejectedByManagement,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                if (!string.IsNullOrEmpty(
+                    entity.VolunteerOpportunity.Organization.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = entity.VolunteerOpportunity.Organization.FCMToken!,
+                        Title = NotificationsMessages.VolunteerApplicationRejected,
+                        Body = NotificationsMessages.ApplicationRejectedByManagement,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                transaction.Commit();
+
+                return _mapper.Map<StudentApplicationDto>(entity);
             }
-
-            entity.StatusForManagement = ApplicationStatus.Rejected;
-
-            entity.ManagementRejectionReason =
-                rejectStudentApplicationDto.RejectionReason;
-
-            entity.ModifiedDate = DateTime.UtcNow;
-
-            entity.ModifiedBy = currentUserId;
-
-            _dbContext.StudentApplications.Update(entity);
-
-            int effectedRows = await _dbContext.SaveChangesAsync();
-
-            if (!(effectedRows > 0))
+            catch
             {
-                throw new ApiDataException();
-            }
+                transaction.Rollback();
 
-            return _mapper.Map<StudentApplicationDto>(entity);
+                throw;
+            }
         }
 
         public async Task<StudentApplicationDto> Create(
@@ -332,9 +567,68 @@ namespace VolunteerWorkApi.Services.StudentApplications
                     throw new ApiDataException();
                 }
 
+
+                var item = _dbContext.StudentApplications
+                        .Include(x => x.Student)
+                         .Include(x => x.VolunteerOpportunity)
+                         .ThenInclude(x => x.Organization)
+                         .ThenInclude(x => x.ProfilePicture)
+                         .Include(x => x.VolunteerOpportunity)
+                        .ThenInclude(x => x.Category)
+                        .Where(x => x.Id == entity.Id)
+                        .FirstOrDefault();
+
+                await _notificationService.Create(new CreateNotification
+                {
+                    Title = NotificationsMessages.NewVolunteerApplication,
+                    Body = NotificationsMessages.NewVolunteerApplicationToOpportunity,
+                    ItemId = entity.Id,
+                    Page = NotificationPage.Notifications,
+                    ApplicationUserId = item.VolunteerOpportunity.Organization.Id,
+                });
+
+                if (!string.IsNullOrEmpty(item.VolunteerOpportunity.Organization.FCMToken))
+                {
+                    await _fCMNotificationsService.SendNotification(new FCMNotification
+                    {
+                        FCMToken = item.VolunteerOpportunity.Organization.FCMToken!,
+                        Title = NotificationsMessages.NewVolunteerApplication,
+                        Body = NotificationsMessages.NewVolunteerApplicationToOpportunity,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                    });
+                }
+
+                List<ManagementEmployee> managementAccounts = _dbContext.ManagementEmployees.ToList();
+
+                foreach (ManagementEmployee managementEmployee in managementAccounts)
+                {
+                    await _notificationService.Create(new CreateNotification
+                    {
+                        Title = NotificationsMessages.NewVolunteerApplication,
+                        Body = NotificationsMessages.NewVolunteerApplicationToOpportunity,
+                        ItemId = entity.Id,
+                        Page = NotificationPage.Notifications,
+                        ApplicationUserId = managementEmployee.Id,
+                    });
+
+                    if (!string.IsNullOrEmpty(
+                        managementEmployee.FCMToken))
+                    {
+                        await _fCMNotificationsService.SendNotification(new FCMNotification
+                        {
+                            FCMToken = managementEmployee.FCMToken!,
+                            Title = NotificationsMessages.NewVolunteerApplication,
+                            Body = NotificationsMessages.NewVolunteerApplicationToOpportunity,
+                            ItemId = entity.Id,
+                            Page = NotificationPage.Notifications,
+                        });
+                    }
+                }
+
                 transaction.Commit();
 
-                return _mapper.Map<StudentApplicationDto>(entity);
+                return _mapper.Map<StudentApplicationDto>(item);
             }
             catch
             {
@@ -351,7 +645,15 @@ namespace VolunteerWorkApi.Services.StudentApplications
 
             try
             {
-                var entity = _dbContext.StudentApplications.Find(updateEntityDto.Id);
+                var entity = _dbContext.StudentApplications
+                    .Include(x => x.Student)
+                     .Include(x => x.VolunteerOpportunity)
+                     .ThenInclude(x => x.Organization)
+                     .ThenInclude(x => x.ProfilePicture)
+                     .Include(x => x.VolunteerOpportunity)
+                    .ThenInclude(x => x.Category)
+                    .Where(x => x.Id == updateEntityDto.Id)
+                    .FirstOrDefault();
 
                 if (entity == null)
                 {

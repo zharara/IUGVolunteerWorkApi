@@ -17,7 +17,6 @@ using VolunteerWorkApi.Services.Announcements;
 using VolunteerWorkApi.Services.Categories;
 using VolunteerWorkApi.Services.Conversations;
 using VolunteerWorkApi.Services.FCMNotifications;
-using VolunteerWorkApi.Services.Interests;
 using VolunteerWorkApi.Services.Jwts;
 using VolunteerWorkApi.Services.ManagementEmployees;
 using VolunteerWorkApi.Services.Messages;
@@ -42,6 +41,8 @@ using VolunteerWorkApi.Services.VolunteerStudentTaskAccomplishes;
 using VolunteerWorkApi.Services.VolunteerStudentWorkAttendances;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.AddFile(o => o.RootPath = o.RootPath = builder.Environment.ContentRootPath);
 
 builder.Services.AddControllers(options =>
     {
@@ -137,7 +138,6 @@ builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IFCMNotificationsService, FCMNotificationsService>();
-builder.Services.AddScoped<IInterestService, InterestService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IManagementEmployeeService, ManagementEmployeeService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
@@ -180,8 +180,8 @@ using (var scope = app.Services.CreateScope())
 
 //if (app.Environment.IsDevelopment())
 //{
-    app.UseSwagger();
-    app.UseSwaggerUI(options => options.EnablePersistAuthorization());
+app.UseSwagger();
+app.UseSwaggerUI(options => options.EnablePersistAuthorization());
 //}
 
 app.UseHttpsRedirection();
@@ -211,6 +211,11 @@ app.UseStaticFiles(new StaticFileOptions()
             ctx.Context.Response.Body = Stream.Null;
         }
     }
+});
+
+app.UseStaticFiles(new StaticFileOptions()
+{
+    FileProvider = new PhysicalFileProvider(Directory.GetCurrentDirectory())
 });
 
 app.MapControllers();

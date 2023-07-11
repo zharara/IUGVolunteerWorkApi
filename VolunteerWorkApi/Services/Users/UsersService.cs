@@ -38,6 +38,7 @@ namespace VolunteerWorkApi.Services.Users
                     UserName = "admin",
                     FirstName = "Admin",
                     LastName = "Admin",
+                    Email = "admin@iugvw.org",
                 };
 
                 await CreateManagement(
@@ -122,6 +123,21 @@ namespace VolunteerWorkApi.Services.Users
             return await CreateUserAccount(user, UsersRoles.Student);
         }
 
+        public async Task<ApplicationUser> GetUserById(long userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+
+            if (user != null)
+            {
+                return user;
+            }
+
+            throw new ApiResponseException(
+                HttpStatusCode.Unauthorized,
+                ErrorMessages.AuthError,
+                ErrorMessages.ErrorUserNotFound);
+        }
+
         public async Task<AuthToken> ChangeUserPassword(
             string currentUserId,
             string currentPassword,
@@ -159,6 +175,46 @@ namespace VolunteerWorkApi.Services.Users
                     return _jwtService.CreateToken(
                     user,
                     userRoles.First());
+                }
+                catch
+                {
+                    throw new ApiResponseException(
+                        HttpStatusCode.Unauthorized,
+                      ErrorMessages.AuthError,
+                      ErrorMessages.ErrorTryingChangePassword);
+                }
+            }
+
+            throw new ApiResponseException(
+                HttpStatusCode.Unauthorized,
+                ErrorMessages.AuthError,
+                ErrorMessages.ErrorUserNotFound);
+        }
+
+        public async Task<ApplicationUser?> ResetUserPassword(
+           long userId,
+           string newPassword)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+
+            if (user != null)
+            {
+                try
+                {
+                    string passwordResetToken = await _userManager
+                           .GeneratePasswordResetTokenAsync(user);
+
+                    var identityResult = await _userManager
+                        .ResetPasswordAsync(user,
+                        passwordResetToken,
+                        newPassword);
+
+                    if (!identityResult.Succeeded)
+                    {
+                        throw new Exception();
+                    }
+
+                    return user;
                 }
                 catch
                 {

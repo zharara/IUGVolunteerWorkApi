@@ -32,7 +32,7 @@ namespace VolunteerWorkApi.Services.Skills
             string? filter, int? skipCount, int? maxResultCount, long? studentId)
         {
             return _dbContext.Skills
-                .Include(x => x.Category)
+                 .Include(x => x.Category)
                  .WhereIf(studentId != null,
                     x => x.Students.Any(s => s.Id == studentId))
                  .WhereIf(!string.IsNullOrEmpty(filter),
@@ -69,7 +69,9 @@ namespace VolunteerWorkApi.Services.Skills
 
         public Skill? GetEntityByName(string name)
         {
-            return _dbContext.Skills.FirstOrDefault(x => x.Name == name);
+            return _dbContext.Skills
+                .Include(x => x.Category)
+                .FirstOrDefault(x => x.Name == name);
         }
 
         public async Task<SkillDto> Create(
@@ -89,7 +91,7 @@ namespace VolunteerWorkApi.Services.Skills
 
             entity.CreatedBy = currentUserId;
 
-            await _dbContext.Skills.AddAsync(entity);
+            var addedEntity = await _dbContext.Skills.AddAsync(entity);
 
             int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -98,7 +100,12 @@ namespace VolunteerWorkApi.Services.Skills
                 throw new ApiDataException();
             }
 
-            return _mapper.Map<SkillDto>(entity);
+            var item = _dbContext.Skills
+                      .Include(x => x.Category)
+                      .Where(x => x.Id == addedEntity.Entity.Id)
+                      .FirstOrDefault();
+
+            return _mapper.Map<SkillDto>(item);
         }
 
         public async Task<Skill> CreateEntity(
@@ -108,7 +115,7 @@ namespace VolunteerWorkApi.Services.Skills
 
             entity.CreatedBy = currentUserId;
 
-            await _dbContext.Skills.AddAsync(entity);
+            var addedEntity = await _dbContext.Skills.AddAsync(entity);
 
             int effectedRows = await _dbContext.SaveChangesAsync();
 
@@ -117,13 +124,21 @@ namespace VolunteerWorkApi.Services.Skills
                 throw new ApiDataException();
             }
 
-            return entity;
+            var item = _dbContext.Skills
+                      .Include(x => x.Category)
+                      .Where(x => x.Id == addedEntity.Entity.Id)
+                      .FirstOrDefault();
+
+            return item!;
         }
 
         public async Task<SkillDto> Update(
             UpdateSkillDto updateEntityDto, long currentUserId)
         {
-            var entity = _dbContext.Skills.Find(updateEntityDto.Id);
+            var entity = _dbContext.Skills
+                      .Include(x => x.Category)
+                      .Where(x => x.Id == updateEntityDto.Id)
+                      .FirstOrDefault();
 
             if (entity == null)
             {

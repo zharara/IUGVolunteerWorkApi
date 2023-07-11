@@ -18,5 +18,9 @@ namespace VolunteerWorkApi.Dtos.Message
         public ApplicationUserDto Sender { get; set; }
 
         public ApplicationUserDto Receiver { get; set; }
+
+        public long ConversationId { get; set; }
+
+        public ConversationDto Conversation { get; set; }
     }
 }

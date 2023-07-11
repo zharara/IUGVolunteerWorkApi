@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using VolunteerWorkApi.Constants;
 using VolunteerWorkApi.Data;
 using VolunteerWorkApi.Dtos.Student;
@@ -7,7 +8,6 @@ using VolunteerWorkApi.Extensions;
 using VolunteerWorkApi.Helpers;
 using VolunteerWorkApi.Helpers.ErrorHandling;
 using VolunteerWorkApi.Models;
-using VolunteerWorkApi.Services.Interests;
 using VolunteerWorkApi.Services.SavedFiles;
 using VolunteerWorkApi.Services.Skills;
 using VolunteerWorkApi.Services.Users;
@@ -20,7 +20,6 @@ namespace VolunteerWorkApi.Services.Students
         private readonly IMapper _mapper;
         private readonly IUsersService _usersService;
         private readonly ISkillService _skillService;
-        private readonly IInterestService _interestService;
         private readonly ISavedFileService _savedFileService;
 
         public StudentService(
@@ -28,14 +27,12 @@ namespace VolunteerWorkApi.Services.Students
             IMapper mapper,
             IUsersService usersService,
             ISkillService skillService,
-            IInterestService interestService,
             ISavedFileService savedFileService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _usersService = usersService;
             _skillService = skillService;
-            _interestService = interestService;
             _savedFileService = savedFileService;
         }
 
@@ -44,20 +41,21 @@ namespace VolunteerWorkApi.Services.Students
             return _dbContext.Students
                 .Include(x => x.ProfilePicture)
                 .Include(x => x.Skills)
-                .Include(x => x.Interests)
                 .Select(x => _mapper.Map<StudentDto>(x))
                 .ToList();
         }
 
         public IEnumerable<StudentDto> GetList(
-            string? filter, int? skipCount, int? maxResultCount)
+            string? filter, int? skipCount,
+            int? maxResultCount, bool? isNotVolunteer)
         {
             return _dbContext.Students
                 .Include(x => x.ProfilePicture)
                 .Include(x => x.Skills)
-                .Include(x => x.Interests)
                 .WhereIf(!string.IsNullOrEmpty(filter),
                    x => x.FullName.Contains(filter!))
+                .WhereIf(isNotVolunteer == true,
+                   x => !x.IsEnrolledInProgram)
                 .Skip(skipCount ?? 0)
                 .Take(maxResultCount ?? ApiConstants.MaxResultCount)
                 .Select(x => _mapper.Map<StudentDto>(x))
@@ -149,38 +147,6 @@ namespace VolunteerWorkApi.Services.Students
             return _mapper.Map<StudentDto>(entity);
         }
 
-        public async Task<StudentDto> UpdateInterests(
-            UpdateStudentInterests updateStudentInterestsDto, long currentUserId)
-        {
-            var entity = _dbContext.Students
-                .Include(x => x.Interests)
-                .FirstOrDefault(x => x.Id == updateStudentInterestsDto.StudentId);
-
-            if (entity == null)
-            {
-                throw new ApiNotFoundException();
-            }
-
-            DataCollectionsHandler.HandleInterests(
-                _mapper, _interestService,
-                entity.Interests, updateStudentInterestsDto.Interests);
-
-            entity.ModifiedDate = DateTime.UtcNow;
-
-            entity.ModifiedBy = currentUserId;
-
-            _dbContext.Students.Update(entity);
-
-            int effectedRows = await _dbContext.SaveChangesAsync();
-
-            if (!(effectedRows > 0))
-            {
-                throw new ApiDataException();
-            }
-
-            return _mapper.Map<StudentDto>(entity);
-        }
-
         public async Task<StudentDto> Update(
             UpdateStudentDto updateEntityDto, long currentUserId)
         {
@@ -188,7 +154,11 @@ namespace VolunteerWorkApi.Services.Students
 
             try
             {
-                var entity = _dbContext.Students.Find(updateEntityDto.Id);
+                var entity = _dbContext.Students
+                        .Include(x => x.ProfilePicture)
+                        .Include(x => x.Skills)
+                        .Where(x => x.Id == updateEntityDto.Id)
+                        .FirstOrDefault();
 
                 if (entity == null)
                 {
@@ -227,6 +197,61 @@ namespace VolunteerWorkApi.Services.Students
                 transaction.Rollback();
 
                 throw;
+            }
+        }
+
+        public async Task<StudentDto> UpdateByManagement(
+           UpdateStudentByManagementDto updateStudentByManagement,
+           long currentUserId)
+        {
+            var entity = _dbContext.Students
+                    .Include(x => x.ProfilePicture)
+                    .Include(x => x.Skills)
+                    .Where(x => x.Id == updateStudentByManagement.Id)
+                    .FirstOrDefault();
+
+            if (entity == null)
+            {
+                throw new ApiNotFoundException();
+            }
+
+            entity = _mapper.Map(updateStudentByManagement, entity);
+
+            entity.ModifiedDate = DateTime.UtcNow;
+
+            entity.ModifiedBy = currentUserId;
+
+            _dbContext.Students.Update(entity);
+
+            int effectedRows = await _dbContext.SaveChangesAsync();
+
+            if (!(effectedRows > 0))
+            {
+                throw new ApiDataException();
+            }
+
+            return _mapper.Map<StudentDto>(entity);
+        }
+
+        public async Task StudentHasEnrolledInProgram(
+            long studentId)
+        {
+            var entity = _dbContext.Students.Find(studentId);
+
+            if (entity == null)
+            {
+                throw new ApiNotFoundException();
+            }
+
+            entity.IsEnrolledInProgram = true;
+
+            _dbContext.Students.Update(entity);
+
+            int effectedRows = await _dbContext.SaveChangesAsync();
+
+            if (!(effectedRows > 0))
+            {
+                throw new ApiDataException();
             }
         }
 

@@ -1,84 +1,14 @@
 ﻿using AutoMapper;
 using System.Net;
 using VolunteerWorkApi.Constants;
-using VolunteerWorkApi.Dtos.Interest;
 using VolunteerWorkApi.Dtos.Skill;
-using VolunteerWorkApi.Entities;
 using VolunteerWorkApi.Helpers.ErrorHandling;
-using VolunteerWorkApi.Services.Interests;
 using VolunteerWorkApi.Services.Skills;
 
 namespace VolunteerWorkApi.Helpers
 {
     public static class DataCollectionsHandler
     {
-        public static void HandleInterests(
-              IMapper mapper,
-              IInterestService interestService,
-              ICollection<Interest> entityInterests,
-              ICollection<ExistingOrCreateNewInterestDto> toSetInterests)
-        {
-
-            var selectedInterestsIds = new List<long>();
-
-            foreach (ExistingOrCreateNewInterestDto interestToSet
-                in toSetInterests)
-            {
-                if (interestToSet.Id != null)
-                {
-                    selectedInterestsIds.Add((long)interestToSet.Id);
-                }
-
-                var existingStudentInterest = entityInterests
-                    .FirstOrDefault(x => x.Id == (interestToSet.Id ?? -1));
-
-                if (existingStudentInterest == null)
-                {
-                    Interest interest;
-
-                    if (interestToSet.Id != null)
-                    {
-                        interest = interestService
-                            .GetEntityById((long)interestToSet.Id);
-                    }
-                    else
-                    {
-                        bool isCategoryNotSetProperly =
-                            (interestToSet.CategoryId == null
-                            && interestToSet.Category is null) ||
-                            (interestToSet.CategoryId != null
-                            && interestToSet.Category is not null);
-
-                        if (string.IsNullOrEmpty(interestToSet.Name) ||
-                             isCategoryNotSetProperly)
-                        {
-                            throw new ApiResponseException(
-                                HttpStatusCode.BadRequest,
-                                ErrorMessages.InputError,
-                                ErrorMessages.InputConflict);
-                        }
-
-                        interest = new Interest
-                        {
-                            Name = interestToSet.Name,
-                            CategoryId = interestToSet.CategoryId ?? 0,
-                            Category = mapper.Map<Category>(interestToSet.Category),
-                        };
-                    }
-
-                    entityInterests.Add(interest);
-                }
-            }
-
-            foreach (var interest in entityInterests)
-            {
-                if (interest.Id != 0 && !selectedInterestsIds.Contains(interest.Id))
-                {
-                    entityInterests.Remove(interest);
-                }
-            }
-        }
-
         public static void HandleSkills(
           IMapper mapper,
           ISkillService skillService,
